@@ -1,35 +1,31 @@
-# feature_engineer.py
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-import joblib
+import numpy as np
+from pathlib import Path
+from utils import load_conn_logs, clean_labels
+import argparse
 
-DATASET = "data/iot23_light/conn_dataset.csv"  # your IoT-23 CSV
-SAVE_PATH = "data/processed/"
+def engineer_features(input_folder, output_file):
+    print("[INFO] Loading raw logs...")
+    df = load_conn_logs(input_folder)
+    df = clean_labels(df, label_col="Label")
 
-df = pd.read_csv(DATASET)
+    print("[INFO] Selecting useful features...")
+    keep_cols = [
+        'duration', 'orig_bytes', 'resp_bytes',
+        'orig_pkts', 'resp_pkts',
+        'orig_ip_bytes', 'resp_ip_bytes',
+        'Label'
+    ]
+    df = df[keep_cols].fillna(0)
 
-# Encode labels
-le = LabelEncoder()
-df["label"] = le.fit_transform(df["label"])
+    print("[INFO] Saving processed dataset...")
+    df.to_csv(output_file, index=False)
+    print(f"[INFO] Saved to {output_file}")
 
-# Save label encoder
-joblib.dump(le, SAVE_PATH + "label_encoder.pkl")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", type=str, required=True, help="Input folder containing IoT-23 conn.log.labeled files")
+    parser.add_argument("--output", type=str, required=True, help="Output CSV file for features")
+    args = parser.parse_args()
 
-# Select numeric features only
-numeric_cols = df.select_dtypes(include=['int64','float64']).columns
-X = df[numeric_cols]
-y = df["label"]
-
-# Standardize
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-joblib.dump(scaler, SAVE_PATH + "scaler.pkl")
-
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, stratify=y, random_state=42)
-
-# Save
-joblib.dump((X_train, X_test, y_train, y_test), SAVE_PATH + "tabular_data.pkl")
-
-print(f"Processed data saved in {SAVE_PATH}")
+    engineer_features(args.input, args.output)

@@ -5,14 +5,14 @@ from utils import clean_labels  # Assuming clean_labels is in your utils.py
 import argparse
 import sys
 
-def engineer_features(input_folder, output_file):
+def engineer_features(input_folder, output_file, chunksize=100000):
     """
-    Processes log files one by one to engineer features and saves them to a
-    single CSV file, operating in a memory-efficient manner.
+    Memory-efficient feature engineering for IoT-23 conn logs.
+    Processes logs chunk-by-chunk to avoid memory overload.
     """
+
     print("[INFO] Starting memory-efficient feature engineering...")
 
-    # Define the columns from the original conn.log files we want to keep.
     keep_cols = [
         'duration', 'orig_bytes', 'resp_bytes',
         'orig_pkts', 'resp_pkts',
@@ -20,8 +20,6 @@ def engineer_features(input_folder, output_file):
         'Label'
     ]
     
-    # Full column names for Zeek conn logs from the IoT-23 dataset.
-    # The last two are the labels added to this specific dataset.
     col_names = [
         'ts', 'uid', 'id.orig_h', 'id.orig_p', 'id.resp_h', 'id.resp_p',
         'proto', 'service', 'duration', 'orig_bytes', 'resp_bytes',
@@ -30,10 +28,8 @@ def engineer_features(input_folder, output_file):
         'tunnel_parents', 'Label', 'detailed-label'
     ]
 
-    # Flag to ensure the header is only written for the first file.
-    is_first_file = True
+    is_first_chunk = True
 
-    # Find all labeled connection logs recursively.
     log_files = list(Path(input_folder).rglob("*.conn.log.labeled"))
     if not log_files:
         print(f"[ERROR] No '*.conn.log.labeled' files found in {input_folder}", file=sys.stderr)
@@ -41,36 +37,33 @@ def engineer_features(input_folder, output_file):
 
     print(f"[INFO] Found {len(log_files)} files to process...")
 
-    for f in log_files:
+    for i, f in enumerate(log_files):
+        print(f"[INFO] Processing file {i+1}/{len(log_files)}: {f.name}")
         try:
-            # Read a single log file. Zeek logs are tab-separated, use '-' for null,
-            # and have commented headers we need to skip.
-            df = pd.read_csv(
+            chunk_iter = pd.read_csv(
                 f,
                 sep='\t',
                 names=col_names,
                 na_values='-',
-                comment='#'
+                comment='#',
+                chunksize=chunksize
             )
-            
-            if df.empty:
-                print(f"[WARN] Skipping empty file: {f.name}")
-                continue
 
-            # --- Apply your original processing logic to this single file ---
-            df = clean_labels(df, label_col="Label")
-            df = df[keep_cols].fillna(0)
-            
-            # -----------------------------------------------------------------
+            for chunk in chunk_iter:
+                if chunk.empty:
+                    continue
 
-            if is_first_file:
-                # For the first file, write with a header and overwrite any existing file.
-                print(f"[INFO] Creating '{output_file}' and writing first batch of features...")
-                df.to_csv(output_file, mode='w', header=True, index=False)
-                is_first_file = False
-            else:
-                # For all other files, append without the header.
-                df.to_csv(output_file, mode='a', header=False, index=False)
+                chunk = clean_labels(chunk, label_col="Label")
+                chunk = chunk[keep_cols].fillna(0)
+
+                chunk.to_csv(
+                    output_file,
+                    mode='a' if not is_first_chunk else 'w',
+                    header=is_first_chunk,
+                    index=False
+                )
+
+                is_first_chunk = False
 
         except Exception as e:
             print(f"[ERROR] Failed to process file {f.name}: {e}", file=sys.stderr)
@@ -94,6 +87,12 @@ if __name__ == "__main__":
         required=True, 
         help="Output CSV file for features"
     )
+    parser.add_argument(
+        "--chunksize",
+        type=int,
+        default=100000,
+        help="Number of rows to process at a time"
+    )
     args = parser.parse_args()
 
-    engineer_features(args.input, args.output)
+    engineer_features(args.input, args.output, args.chunksize)

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from utils import clean_labels  # Assuming clean_labels is in your utils.py
+from utils import clean_labels  # Make sure utils.py is in same folder
 import argparse
 import sys
 
@@ -19,7 +19,7 @@ def engineer_features(input_folder, output_file, chunksize=100000):
         'orig_ip_bytes', 'resp_ip_bytes',
         'Label'
     ]
-    
+
     col_names = [
         'ts', 'uid', 'id.orig_h', 'id.orig_p', 'id.resp_h', 'id.resp_p',
         'proto', 'service', 'duration', 'orig_bytes', 'resp_bytes',
@@ -28,28 +28,29 @@ def engineer_features(input_folder, output_file, chunksize=100000):
         'tunnel_parents', 'Label', 'detailed-label'
     ]
 
-    is_first_chunk = True
-
-    log_files = list(Path(input_folder).rglob("*.conn.log.labeled"))
+    log_files = sorted(Path(input_folder).rglob("*.conn.log.labeled"))
     if not log_files:
         print(f"[ERROR] No '*.conn.log.labeled' files found in {input_folder}", file=sys.stderr)
         return
 
     print(f"[INFO] Found {len(log_files)} files to process...")
 
+    is_first_chunk = True
+    total_rows = 0
+
     for i, f in enumerate(log_files):
-        print(f"[INFO] Processing file {i+1}/{len(log_files)}: {f.name}")
+        print(f"[INFO] Processing file {i+1}/{len(log_files)}: {f}")
         try:
-            chunk_iter = pd.read_csv(
+            for chunk in pd.read_csv(
                 f,
                 sep='\t',
                 names=col_names,
                 na_values='-',
                 comment='#',
-                chunksize=chunksize
-            )
-
-            for chunk in chunk_iter:
+                chunksize=chunksize,
+                low_memory=False,
+                on_bad_lines='skip'
+            ):
                 if chunk.empty:
                     continue
 
@@ -64,11 +65,13 @@ def engineer_features(input_folder, output_file, chunksize=100000):
                 )
 
                 is_first_chunk = False
+                total_rows += len(chunk)
 
         except Exception as e:
             print(f"[ERROR] Failed to process file {f.name}: {e}", file=sys.stderr)
 
-    print(f"\n[INFO] ✅ All files processed. Final dataset saved to {output_file}")
+    print(f"\n[INFO] ✅ All files processed. Total rows written: {total_rows}")
+    print(f"[INFO] Final dataset saved to {output_file}")
 
 
 if __name__ == "__main__":
@@ -76,15 +79,15 @@ if __name__ == "__main__":
         description="Memory-efficient feature engineering for IoT-23 conn logs."
     )
     parser.add_argument(
-        "--input", 
-        type=str, 
-        required=True, 
+        "--input",
+        type=str,
+        required=True,
         help="Input folder containing IoT-23 conn.log.labeled files"
     )
     parser.add_argument(
-        "--output", 
-        type=str, 
-        required=True, 
+        "--output",
+        type=str,
+        required=True,
         help="Output CSV file for features"
     )
     parser.add_argument(

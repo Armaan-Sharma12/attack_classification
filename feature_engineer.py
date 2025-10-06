@@ -5,9 +5,11 @@ import argparse
 import sys
 from tqdm import tqdm
 
-# Optional clean_labels function if not imported from utils.py
+# ======================================================
+# Helper: Clean and normalize labels
+# ======================================================
 def clean_labels(df, label_col="Label"):
-    """Clean and normalize labels if they exist"""
+    """Clean and normalize labels for IoT-23 dataset"""
     if label_col not in df.columns:
         print(f"[WARN] Skipping file: no '{label_col}' column found")
         return df
@@ -20,14 +22,11 @@ def clean_labels(df, label_col="Label"):
     })
     return df
 
-
+# ======================================================
+# Main Feature Engineering Function
+# ======================================================
 def engineer_features(input_folder, output_file, chunksize=100000):
-    """
-    Memory-efficient feature engineering for IoT-23 conn logs.
-    Processes logs chunk-by-chunk to avoid memory overload.
-    """
-
-    print(f"[INFO] Starting memory-efficient feature engineering from: {input_folder}")
+    print(f"[INFO] Starting feature engineering from: {input_folder}")
 
     keep_cols = [
         'duration', 'orig_bytes', 'resp_bytes',
@@ -44,6 +43,7 @@ def engineer_features(input_folder, output_file, chunksize=100000):
         'tunnel_parents', 'Label', 'detailed-label'
     ]
 
+    # find all conn.log.labeled recursively
     log_files = list(Path(input_folder).rglob("*.conn.log.labeled"))
     print(f"[DEBUG] Found {len(log_files)} conn.log.labeled files under {input_folder}")
     for sample in log_files[:5]:
@@ -51,7 +51,7 @@ def engineer_features(input_folder, output_file, chunksize=100000):
 
     if not log_files:
         print(f"[ERROR] No '*.conn.log.labeled' files found under {input_folder}", file=sys.stderr)
-        return
+        sys.exit(1)
 
     is_first_chunk = True
     total_rows = 0
@@ -93,17 +93,23 @@ def engineer_features(input_folder, output_file, chunksize=100000):
         except Exception as e:
             print(f"[ERROR] Failed to process {f.name}: {e}", file=sys.stderr)
 
-    print(f"\n[INFO] ✅ Completed. Total processed rows: {total_rows}")
+    print(f"\n[INFO] ✅ Completed successfully.")
+    print(f"[INFO] Total processed rows: {total_rows}")
     print(f"[INFO] Final dataset saved to: {output_file}")
 
-
+# ======================================================
+# CLI Entry Point
+# ======================================================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Memory-efficient feature engineering for IoT-23 conn logs."
     )
-    parser.add_argument("--input", type=str, required=True, help="Input folder containing IoT-23 conn.log.labeled files")
-    parser.add_argument("--output", type=str, required=True, help="Output CSV file for features")
-    parser.add_argument("--chunksize", type=int, default=100000, help="Number of rows to process at a time")
+    parser.add_argument("--input", type=str, required=True,
+                        help="Input folder containing IoT-23 conn.log.labeled files")
+    parser.add_argument("--output", type=str, required=True,
+                        help="Output CSV file for features")
+    parser.add_argument("--chunksize", type=int, default=100000,
+                        help="Number of rows to process at a time")
 
     args = parser.parse_args()
     engineer_features(args.input, args.output, args.chunksize)

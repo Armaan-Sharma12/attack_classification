@@ -27,13 +27,13 @@ def train_xgboost_gpu_live(input_csv, model_output, result_root="results"):
     result_dir = os.path.join(result_root, f"run_{timestamp}")
     os.makedirs(result_dir, exist_ok=True)
 
-    print(f"\n📂 Results will be saved in: {result_dir}")
+    print(f"\n Results will be saved in: {result_dir}")
 
     print(f"[INFO] Loading dataset: {input_csv}")
     df = pd.read_csv(input_csv)
 
     if "Label" not in df.columns:
-        raise ValueError("❌ 'Label' column not found in dataset!")
+        raise ValueError(" 'Label' column not found in dataset!")
 
     print("[INFO] Preparing features and labels...")
     X = df.drop(columns=["Label"])
@@ -78,7 +78,7 @@ def train_xgboost_gpu_live(input_csv, model_output, result_root="results"):
     )
 
     elapsed = time.time() - start_time
-    print(f"\n✅ Training complete in {elapsed:.2f} seconds")
+    print(f"\n Training complete in {elapsed:.2f} seconds")
 
     print("\n[INFO] Evaluating model on test set...")
     y_pred = model.predict(X_test)
@@ -135,8 +135,8 @@ def train_xgboost_gpu_live(input_csv, model_output, result_root="results"):
     plt.savefig(os.path.join(result_dir, "feature_importance.png"))
     plt.close()
 
-    print(f"[INFO] 📊 All visualizations saved inside: {result_dir}")
-    print("[INFO] 🎉 Training and evaluation completed successfully!")
+    print(f"[INFO]  All visualizations saved inside: {result_dir}")
+    print("[INFO]  Training and evaluation completed successfully!")
 
 
 if __name__ == "__main__":
